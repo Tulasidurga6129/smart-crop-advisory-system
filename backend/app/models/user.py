@@ -1,8 +1,7 @@
 from datetime import datetime
 
 from sqlalchemy import Boolean, DateTime, Integer, String
-from sqlalchemy.orm import Mapped, mapped_column
-
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.core.database import Base
 
 
@@ -55,4 +54,10 @@ class User(Base):
         default=datetime.utcnow,
         onupdate=datetime.utcnow,
         nullable=False
+    )
+    farmer_profile = relationship(
+        "FarmerProfile",
+        back_populates="user",
+        uselist=False,
+        cascade="all, delete-orphan",
     )
