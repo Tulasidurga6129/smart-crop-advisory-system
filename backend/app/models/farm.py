@@ -6,8 +6,8 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.core.database import Base
 
 
-class FarmerProfile(Base):
-    __tablename__ = "farmer_profiles"
+class Farm(Base):
+    __tablename__ = "farms"
 
     id: Mapped[int] = mapped_column(
         Integer,
@@ -15,19 +15,21 @@ class FarmerProfile(Base):
         index=True,
     )
 
-    user_id: Mapped[int] = mapped_column(
-        ForeignKey("users.id", ondelete="CASCADE"),
-        unique=True,
+    farmer_profile_id: Mapped[int] = mapped_column(
+        ForeignKey(
+            "farmer_profiles.id",
+            ondelete="CASCADE",
+        ),
         nullable=False,
         index=True,
     )
 
-    phone: Mapped[str | None] = mapped_column(
-        String(20),
-        nullable=True,
+    farm_name: Mapped[str] = mapped_column(
+        String(100),
+        nullable=False,
     )
 
-    address: Mapped[str | None] = mapped_column(
+    location: Mapped[str | None] = mapped_column(
         String(255),
         nullable=True,
     )
@@ -47,17 +49,28 @@ class FarmerProfile(Base):
         nullable=True,
     )
 
-    land_area: Mapped[float | None] = mapped_column(
+    land_area: Mapped[float] = mapped_column(
         Float,
-        nullable=True,
+        nullable=False,
     )
 
-    land_unit: Mapped[str | None] = mapped_column(
+    land_unit: Mapped[str] = mapped_column(
         String(20),
+        nullable=False,
+        default="acres",
+    )
+
+    soil_type: Mapped[str | None] = mapped_column(
+        String(100),
         nullable=True,
     )
 
-    primary_crop: Mapped[str | None] = mapped_column(
+    irrigation_type: Mapped[str | None] = mapped_column(
+        String(100),
+        nullable=True,
+    )
+
+    current_crop: Mapped[str | None] = mapped_column(
         String(100),
         nullable=True,
     )
@@ -75,12 +88,7 @@ class FarmerProfile(Base):
         nullable=False,
     )
 
-    user = relationship(
-        "User",
-        back_populates="farmer_profile",
-    )
-    farms = relationship(
-        "Farm",
-        back_populates="farmer_profile",
-        cascade="all, delete-orphan",
+    farmer_profile = relationship(
+        "FarmerProfile",
+        back_populates="farms",
     )
