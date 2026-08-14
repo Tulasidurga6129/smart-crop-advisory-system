@@ -92,3 +92,13 @@ class Farm(Base):
         "FarmerProfile",
         back_populates="farms",
     )
+    crops = relationship(
+        "Crop",
+        back_populates="farm",
+        cascade="all, delete-orphan",
+    )
+    conditions = relationship(
+        "FarmCondition",
+        back_populates="farm",
+        cascade="all, delete-orphan",
+    )
