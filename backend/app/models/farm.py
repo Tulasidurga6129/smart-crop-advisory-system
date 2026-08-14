@@ -102,3 +102,8 @@ class Farm(Base):
         back_populates="farm",
         cascade="all, delete-orphan",
     )
+    weather_records = relationship(
+    "Weather",
+    back_populates="farm",
+    cascade="all, delete-orphan",
+)
