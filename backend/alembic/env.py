@@ -8,9 +8,9 @@ from dotenv import load_dotenv
 import os
 
 from app.core.database import Base
+
 from app.models.user import User
-
-
+from app.models.notification import Notification
 load_dotenv()
 
 

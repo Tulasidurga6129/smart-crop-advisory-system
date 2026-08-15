@@ -7,3 +7,4 @@ from app.models.weather import Weather
 from app.models.crop_advisory import CropAdvisory
 from app.models.disease_detection import DiseaseDetection
 from app.models.crop_monitoring import CropMonitoring
+from app.models.notification import Notification
