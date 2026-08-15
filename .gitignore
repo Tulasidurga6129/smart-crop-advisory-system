@@ -1,0 +1,9 @@
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Trained ML models
+*.pkl
+
+!ml/yield_prediction/yield_model.pkl
