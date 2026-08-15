@@ -1,6 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-
 from app.api.deps import get_current_user
 from app.core.database import get_db
 from app.models.crop import Crop
@@ -13,7 +12,6 @@ from app.schemas.crop_advisory import (
     CropAdvisoryUpdate,
 )
 from app.services import crop_advisory_service
-
 
 router = APIRouter(
     prefix="/crop-advisories",
@@ -117,7 +115,25 @@ def get_farm_advisories(
         farm_id,
     )
 
+@router.get(
+    "/farm/{farm_id}/active",
+    response_model=list[CropAdvisoryResponse],
+)
+def get_active_farm_advisories(
+    farm_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    get_my_farm(
+        db,
+        current_user,
+        farm_id,
+    )
 
+    return crop_advisory_service.get_active_farm_advisories(
+        db,
+        farm_id,
+    )
 @router.get(
     "/crop/{crop_id}",
     response_model=list[CropAdvisoryResponse],
@@ -150,7 +166,56 @@ def get_crop_advisories(
         crop_id,
     )
 
+@router.post(
+    "/{advisory_id}/resolve",
+    response_model=CropAdvisoryResponse,
+)
+def resolve_advisory(
+    advisory_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    advisory = get_my_advisory(
+        db,
+        current_user,
+        advisory_id,
+    )
 
+    if advisory.status != "active":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Only active advisories can be resolved",
+        )
+
+    return crop_advisory_service.resolve_advisory(
+        db,
+        advisory,
+    )
+@router.post(
+    "/{advisory_id}/dismiss",
+    response_model=CropAdvisoryResponse,
+)
+def dismiss_advisory(
+    advisory_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    advisory = get_my_advisory(
+        db,
+        current_user,
+        advisory_id,
+    )
+
+    if advisory.status != "active":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Only active advisories can be dismissed",
+        )
+
+    return crop_advisory_service.dismiss_advisory(
+        db,
+        advisory,
+    )
 @router.get(
     "/{advisory_id}",
     response_model=CropAdvisoryResponse,

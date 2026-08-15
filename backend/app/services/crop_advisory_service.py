@@ -1,5 +1,6 @@
+from datetime import datetime
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
-
 from app.models.crop_advisory import CropAdvisory
 from app.schemas.crop_advisory import (
     CropAdvisoryCreate,
@@ -88,3 +89,48 @@ def delete_advisory(
 ) -> None:
     db.delete(advisory)
     db.commit()
+def get_active_farm_advisories(
+    db: Session,
+    farm_id: int,
+) -> list[CropAdvisory]:
+    now = datetime.utcnow()
+
+    advisories = (
+        db.query(CropAdvisory)
+        .filter(
+            CropAdvisory.farm_id == farm_id,
+            CropAdvisory.status == "active",
+            or_(
+                CropAdvisory.valid_until.is_(None),
+                CropAdvisory.valid_until > now,
+            ),
+        )
+        .order_by(
+            CropAdvisory.created_at.desc()
+        )
+        .all()
+    )
+
+    return advisories
+def resolve_advisory(
+    db: Session,
+    advisory: CropAdvisory,
+) -> CropAdvisory:
+    advisory.status = "resolved"
+
+    db.commit()
+    db.refresh(advisory)
+
+    return advisory
+
+
+def dismiss_advisory(
+    db: Session,
+    advisory: CropAdvisory,
+) -> CropAdvisory:
+    advisory.status = "dismissed"
+
+    db.commit()
+    db.refresh(advisory)
+
+    return advisory
