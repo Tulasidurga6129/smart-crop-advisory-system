@@ -5,3 +5,4 @@ from app.models.crop import Crop
 from app.models.farm_condition import FarmCondition
 from app.models.weather import Weather
 from app.models.crop_advisory import CropAdvisory
+from app.models.disease_detection import DiseaseDetection

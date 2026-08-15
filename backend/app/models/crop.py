@@ -82,3 +82,8 @@ class Crop(Base):
         back_populates="crop",
         cascade="all, delete-orphan",
     )
+    disease_detections = relationship(
+        "DiseaseDetection",
+        back_populates="crop",
+        cascade="all, delete-orphan",
+    )

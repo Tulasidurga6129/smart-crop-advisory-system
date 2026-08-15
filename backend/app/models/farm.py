@@ -112,3 +112,9 @@ class Farm(Base):
         back_populates="farm",
         cascade="all, delete-orphan",
     )
+    disease_detections = relationship(
+        "DiseaseDetection",
+        back_populates="farm",
+        cascade="all, delete-orphan",
+    )
+    

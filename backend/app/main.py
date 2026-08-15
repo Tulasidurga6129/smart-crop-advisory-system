@@ -11,7 +11,8 @@ from app.api.v1 import (
     conditions,
     weather,
     crop_advisories,
-     recommendations,
+    recommendations,
+    disease_detections,
 )
 from app.api.v1.profile import router as profile_router
 app = FastAPI(
@@ -30,6 +31,7 @@ app.include_router(crops.router)
 app.include_router(conditions.router)
 app.include_router(weather.router)
 app.include_router(crop_advisories.router)
+app.include_router(disease_detections.router)
 app.include_router(recommendations.router)
 app.include_router(
     users_router,
