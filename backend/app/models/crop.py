@@ -77,3 +77,8 @@ class Crop(Base):
         "Farm",
         back_populates="crops",
     )
+    advisories = relationship(
+        "CropAdvisory",
+        back_populates="crop",
+        cascade="all, delete-orphan",
+    )
