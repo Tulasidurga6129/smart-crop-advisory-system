@@ -293,9 +293,10 @@ def generate_recommendations(
                 ),
             }
         )
-	    # -------------------------------------------------
+    # -------------------------------------------------
     # 6. Fertilizer / nutrient recommendation
     # -------------------------------------------------
+
 
     if condition:
 
@@ -303,65 +304,63 @@ def generate_recommendations(
         phosphorus = condition.phosphorus
         potassium = condition.potassium
 
+        nutrient_deficiencies = []
+
         # Nitrogen deficiency
         if nitrogen is not None and nitrogen < 40:
-            recommendations.append(
-                {
-                    "advisory_type": "fertilizer",
-                    "title": "Low Nitrogen Level Detected",
-                    "message": (
-                        f"Soil nitrogen level is "
-                        f"{nitrogen:.1f}. The level is below "
-                        f"the recommended prototype threshold. "
-                        f"Consider a nitrogen-rich fertilizer "
-                        f"and confirm the requirement through "
-                        f"soil testing before application."
-                    ),
-                    "priority": "high",
-                    "status": "active",
-                    "valid_until": (
-                        datetime.utcnow()
-                        + timedelta(days=7)
-                    ),
-                }
-            )
+            nutrient_deficiencies.append("nitrogen")
 
         # Phosphorus deficiency
         if phosphorus is not None and phosphorus < 20:
-            recommendations.append(
-                {
-                    "advisory_type": "fertilizer",
-                    "title": "Low Phosphorus Level Detected",
-                    "message": (
-                        f"Soil phosphorus level is "
-                        f"{phosphorus:.1f}. The level is below "
-                        f"the recommended prototype threshold. "
-                        f"Consider a phosphorus-containing "
-                        f"fertilizer after confirming the "
-                        f"requirement through soil testing."
-                    ),
-                    "priority": "medium",
-                    "status": "active",
-                    "valid_until": (
-                        datetime.utcnow()
-                        + timedelta(days=7)
-                    ),
-                }
-            )
+            nutrient_deficiencies.append("phosphorus")
 
         # Potassium deficiency
         if potassium is not None and potassium < 40:
+            nutrient_deficiencies.append("potassium")
+
+        # -------------------------------------------------
+        # Multiple nutrient deficiencies
+        # -------------------------------------------------
+
+        if len(nutrient_deficiencies) > 1:
+
+            deficiency_names = ", ".join(
+                nutrient_deficiencies
+            )
+
+            fertilizer_sources = []
+
+            if "nitrogen" in nutrient_deficiencies:
+                fertilizer_sources.append("nitrogen fertilizer such as urea")
+
+            if "phosphorus" in nutrient_deficiencies:
+                fertilizer_sources.append(
+                    "phosphorus fertilizer such as DAP or SSP"
+                )
+
+            if "potassium" in nutrient_deficiencies:
+                fertilizer_sources.append(
+                    "potassium fertilizer such as MOP"
+                )
+
+            fertilizer_text = "; ".join(
+                fertilizer_sources
+            )
+
             recommendations.append(
                 {
                     "advisory_type": "fertilizer",
-                    "title": "Low Potassium Level Detected",
+                    "title": "Multiple Nutrient Deficiencies Detected",
                     "message": (
-                        f"Soil potassium level is "
-                        f"{potassium:.1f}. The level is below "
-                        f"the recommended prototype threshold. "
-                        f"Consider a potassium-containing "
-                        f"fertilizer after confirming the "
-                        f"requirement through soil testing."
+                        f"Soil analysis indicates low "
+                        f"{deficiency_names} levels for "
+                        f"{crop.name}. Consider suitable "
+                        f"fertilizer sources such as "
+                        f"{fertilizer_text}. "
+                        f"Actual fertilizer selection and "
+                        f"application rate should be confirmed "
+                        f"using crop stage, soil-test results, "
+                        f"and local agricultural recommendations."
                     ),
                     "priority": "high",
                     "status": "active",
@@ -372,8 +371,98 @@ def generate_recommendations(
                 }
             )
 
-        # Balanced nutrient status
-        if (
+        # -------------------------------------------------
+        # Single nutrient deficiency
+        # -------------------------------------------------
+
+        elif len(nutrient_deficiencies) == 1:
+
+            deficiency = nutrient_deficiencies[0]
+
+            if deficiency == "nitrogen":
+
+                recommendations.append(
+                    {
+                        "advisory_type": "fertilizer",
+                        "title": "Nitrogen Fertilizer Recommended",
+                        "message": (
+                            f"Soil nitrogen level is "
+                            f"{nitrogen:.1f}, which is below "
+                            f"the prototype threshold. "
+                            f"A nitrogen source such as urea "
+                            f"may be considered for {crop.name}. "
+                            f"Confirm the required application "
+                            f"rate using soil-test results, "
+                            f"crop stage, and local agricultural "
+                            f"recommendations."
+                        ),
+                        "priority": "high",
+                        "status": "active",
+                        "valid_until": (
+                            datetime.utcnow()
+                            + timedelta(days=7)
+                        ),
+                    }
+                )
+
+            elif deficiency == "phosphorus":
+
+                recommendations.append(
+                    {
+                        "advisory_type": "fertilizer",
+                        "title": "Phosphorus Fertilizer Recommended",
+                        "message": (
+                            f"Soil phosphorus level is "
+                            f"{phosphorus:.1f}, which is below "
+                            f"the prototype threshold. "
+                            f"A phosphorus source such as "
+                            f"DAP or SSP may be considered "
+                            f"for {crop.name}. Confirm the "
+                            f"required application rate using "
+                            f"soil-test results, crop stage, "
+                            f"and local agricultural "
+                            f"recommendations."
+                        ),
+                        "priority": "medium",
+                        "status": "active",
+                        "valid_until": (
+                            datetime.utcnow()
+                            + timedelta(days=7)
+                        ),
+                    }
+                )
+
+            elif deficiency == "potassium":
+
+                recommendations.append(
+                    {
+                        "advisory_type": "fertilizer",
+                        "title": "Potassium Fertilizer Recommended",
+                        "message": (
+                            f"Soil potassium level is "
+                            f"{potassium:.1f}, which is below "
+                            f"the prototype threshold. "
+                            f"A potassium source such as MOP "
+                            f"may be considered for {crop.name}. "
+                            f"Confirm the required application "
+                            f"rate using soil-test results, "
+                            f"crop stage, and local agricultural "
+                            f"recommendations."
+                        ),
+                        "priority": "high",
+                        "status": "active",
+                        "valid_until": (
+                            datetime.utcnow()
+                            + timedelta(days=7)
+                        ),
+                    }
+                )
+
+        # -------------------------------------------------
+        # All nutrients adequate
+        # -------------------------------------------------
+
+        elif (
             nitrogen is not None
             and phosphorus is not None
             and potassium is not None
@@ -381,19 +470,21 @@ def generate_recommendations(
             and phosphorus >= 20
             and potassium >= 40
         ):
+
             recommendations.append(
                 {
                     "advisory_type": "fertilizer",
                     "title": "Nutrient Levels Are Adequate",
                     "message": (
                         f"Current soil nutrient levels for "
-                        f"{crop.name} appear adequate based on "
-                        f"the prototype thresholds "
+                        f"{crop.name} appear adequate based "
+                        f"on the prototype thresholds "
                         f"(N: {nitrogen:.1f}, "
                         f"P: {phosphorus:.1f}, "
                         f"K: {potassium:.1f}). "
                         f"Avoid unnecessary fertilizer "
-                        f"application and continue monitoring."
+                        f"application and continue monitoring "
+                        f"soil conditions."
                     ),
                     "priority": "low",
                     "status": "active",
