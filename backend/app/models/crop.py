@@ -87,3 +87,8 @@ class Crop(Base):
         back_populates="crop",
         cascade="all, delete-orphan",
     )
+    monitoring_records = relationship(
+        "CropMonitoring",
+        back_populates="crop",
+        cascade="all, delete-orphan",
+    )
