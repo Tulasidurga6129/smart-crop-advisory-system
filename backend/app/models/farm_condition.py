@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import DateTime, Float, ForeignKey, Integer
+from sqlalchemy import DateTime, Float, ForeignKey, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
@@ -29,6 +29,10 @@ class FarmCondition(Base):
         Float,
         nullable=True,
     )
+    soil_type: Mapped[str | None] = mapped_column(
+    String(50),
+    nullable=True,
+)
 
     nitrogen: Mapped[float | None] = mapped_column(
         Float,

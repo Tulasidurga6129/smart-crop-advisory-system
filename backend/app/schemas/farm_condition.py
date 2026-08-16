@@ -9,6 +9,11 @@ class FarmConditionBase(BaseModel):
         ge=0,
         le=14,
     )
+    soil_type: str | None = Field(
+        default=None,
+        max_length=50,
+    )
+
 
     nitrogen: float | None = Field(
         default=None,

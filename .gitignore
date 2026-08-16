@@ -7,3 +7,5 @@ __pycache__/
 *.pkl
 
 !ml/yield_prediction/yield_model.pkl
+
+backend/venv311/

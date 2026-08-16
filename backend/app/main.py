@@ -1,3 +1,10 @@
+import sys
+from pathlib import Path
+
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.api.v1.auth import router as auth_router
@@ -17,6 +24,7 @@ from app.api.v1 import (
     crop_monitoring,
     notifications,
     yield_prediction,
+    fertilizer_recommendation,
 )
 from app.api.v1.profile import router as profile_router
 app = FastAPI(
@@ -41,6 +49,9 @@ app.include_router(dashboard.router)
 app.include_router(crop_monitoring.router)
 app.include_router(notifications.router)
 app.include_router(yield_prediction.router)
+app.include_router(
+    fertilizer_recommendation.router
+)
 app.include_router(
     users_router,
     prefix="/api/v1",
