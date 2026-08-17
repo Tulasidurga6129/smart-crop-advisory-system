@@ -155,6 +155,16 @@ export interface WeatherResponse extends WeatherCreate {
   created_at: string;
 }
 
+export interface TomorrowWeatherResponse {
+  farm_id: number;
+  date: string;
+  temperature_min: number | null;
+  temperature_max: number | null;
+  humidity: number | null;
+  rainfall: number | null;
+  precipitation_probability: number | null;
+  weather_condition: string;
+}
 // ---------- Crop Advisories ----------
 export interface CropAdvisoryCreate {
   advisory_type: string;
