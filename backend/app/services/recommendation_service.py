@@ -7,7 +7,7 @@ from app.models.farm import Farm
 from app.models.farm_condition import FarmCondition
 from app.models.weather import Weather
 from app.models.crop_advisory import CropAdvisory
-
+from app.services import notification_service
 
 def get_latest_condition(
     db: Session,
@@ -537,8 +537,8 @@ def create_recommendations(
     db: Session,
     farm: Farm,
     crop: Crop,
+    user_id: int,
 ) -> list[CropAdvisory]:
-
     recommendations = generate_recommendations(
         db,
         farm,
@@ -586,9 +586,20 @@ def create_recommendations(
         db.add(advisory)
         advisories.append(advisory)
 
-    db.commit()
+        db.commit()
 
     for advisory in advisories:
         db.refresh(advisory)
+
+        notification_service.create_advisory_notification_if_missing(
+            db=db,
+            user_id=user_id,
+            farm_id=advisory.farm_id,
+            crop_id=advisory.crop_id,
+            notification_type=advisory.advisory_type,
+            title=advisory.title,
+            message=advisory.message,
+            priority=advisory.priority,
+        )
 
     return advisories

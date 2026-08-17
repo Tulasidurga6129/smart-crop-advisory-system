@@ -7,7 +7,7 @@ from app.schemas.notification import (
     NotificationCreate,
     NotificationUpdate,
 )
-
+from app.services import notification_service
 
 def create_notification(
     db: Session,
@@ -30,6 +30,46 @@ def create_notification(
 
     return notification
 
+def create_advisory_notification_if_missing(
+    db: Session,
+    user_id: int,
+    farm_id: int,
+    crop_id: int,
+    notification_type: str,
+    title: str,
+    message: str,
+    priority: str,
+) -> Notification | None:
+
+    existing = (
+        db.query(Notification)
+        .filter(
+            Notification.user_id == user_id,
+            Notification.farm_id == farm_id,
+            Notification.crop_id == crop_id,
+            Notification.notification_type == notification_type,
+            Notification.title == title,
+        )
+        .first()
+    )
+
+    if existing:
+        return existing
+
+    notification_data = NotificationCreate(
+        farm_id=farm_id,
+        crop_id=crop_id,
+        notification_type=notification_type,
+        title=title,
+        message=message,
+        priority=priority,
+    )
+
+    return create_notification(
+        db,
+        user_id,
+        notification_data,
+    )
 
 def get_notification(
     db: Session,

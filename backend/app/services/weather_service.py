@@ -1,3 +1,6 @@
+from app.services.weather_provider_service import (
+    get_current_weather,
+)
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -78,3 +81,28 @@ def delete_weather(
 ) -> None:
     db.delete(weather)
     db.commit()
+def fetch_and_save_weather(
+    db: Session,
+    farm,
+) -> Weather:
+    location = farm.location
+
+    if not location:
+        raise ValueError(
+            "Farm location is required to fetch weather"
+        )
+
+    weather_data = get_current_weather(
+        location
+    )
+
+    weather = Weather(
+        farm_id=farm.id,
+        **weather_data,
+    )
+
+    db.add(weather)
+    db.commit()
+    db.refresh(weather)
+
+    return weather

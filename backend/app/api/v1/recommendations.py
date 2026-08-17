@@ -82,9 +82,10 @@ def generate_crop_recommendations(
         )
 
     recommendations = create_recommendations(
-        db,
-        farm,
-        crop,
-    )
+    db,
+    farm,
+    crop,
+    current_user.id,
+)
 
     return recommendations
