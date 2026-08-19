@@ -21,7 +21,7 @@ MODEL_PATH = (
 )
 
 
-# Load the model once when the application starts/imports this service.
+# Load model once when application starts
 try:
     model = joblib.load(MODEL_PATH)
 except Exception as exc:
@@ -63,6 +63,90 @@ def get_latest_weather(
     )
 
 
+def generate_explanation(
+    crop: str,
+    condition: FarmCondition,
+    weather: Weather,
+) -> str:
+
+    explanations = []
+
+    # Soil pH
+    if condition.soil_ph is not None:
+        if 6.0 <= condition.soil_ph <= 7.5:
+            explanations.append(
+                f"soil pH ({condition.soil_ph:.1f}) is within a favorable range"
+            )
+        else:
+            explanations.append(
+                f"soil pH is {condition.soil_ph:.1f}"
+            )
+
+    # Nitrogen
+    if condition.nitrogen is not None:
+        if condition.nitrogen >= 40:
+            explanations.append(
+                f"nitrogen level ({condition.nitrogen:.1f}) is adequate"
+            )
+        else:
+            explanations.append(
+                f"nitrogen level is relatively low ({condition.nitrogen:.1f})"
+            )
+
+    # Phosphorus
+    if condition.phosphorus is not None:
+        if condition.phosphorus >= 20:
+            explanations.append(
+                f"phosphorus level ({condition.phosphorus:.1f}) is adequate"
+            )
+        else:
+            explanations.append(
+                f"phosphorus level is relatively low ({condition.phosphorus:.1f})"
+            )
+
+    # Potassium
+    if condition.potassium is not None:
+        if condition.potassium >= 40:
+            explanations.append(
+                f"potassium level ({condition.potassium:.1f}) is adequate"
+            )
+        else:
+            explanations.append(
+                f"potassium level is relatively low ({condition.potassium:.1f})"
+            )
+
+    # Temperature
+    if weather.temperature is not None:
+        explanations.append(
+            f"temperature is {weather.temperature:.1f}°C"
+        )
+
+    # Humidity
+    if weather.humidity is not None:
+        explanations.append(
+            f"humidity is {weather.humidity:.1f}%"
+        )
+
+    # Rainfall
+    if weather.rainfall is not None:
+        explanations.append(
+            f"rainfall is {weather.rainfall:.1f} mm"
+        )
+
+    if not explanations:
+        return (
+            f"{crop.title()} is recommended based on the "
+            "available farm conditions."
+        )
+
+    return (
+        f"{crop.title()} is recommended based on the current "
+        "soil and weather conditions: "
+        + ", ".join(explanations)
+        + "."
+    )
+
+
 def predict_crop(
     db: Session,
     farm_id: int,
@@ -77,6 +161,7 @@ def predict_crop(
             ),
         )
 
+    # Get latest soil report
     condition = get_latest_condition(
         db,
         farm_id,
@@ -91,6 +176,7 @@ def predict_crop(
             ),
         )
 
+    # Get latest weather
     weather = get_latest_weather(
         db,
         farm_id,
@@ -105,6 +191,7 @@ def predict_crop(
             ),
         )
 
+    # Required model inputs
     required_values = {
         "nitrogen": condition.nitrogen,
         "phosphorus": condition.phosphorus,
@@ -130,6 +217,7 @@ def predict_crop(
             ),
         )
 
+    # Prepare input in the exact order used during training
     input_data = [[
         condition.nitrogen,
         condition.phosphorus,
@@ -140,15 +228,54 @@ def predict_crop(
         weather.rainfall,
     ]]
 
-    prediction = model.predict(
+    # Get probability for every crop
+    probabilities = model.predict_proba(
         input_data
+    )[0]
+
+    classes = model.classes_
+
+    # Combine crop names and probabilities
+    crop_probabilities = list(
+        zip(
+            classes,
+            probabilities,
+        )
     )
 
-    recommended_crop = str(
-        prediction[0]
+    # Sort highest probability first
+    crop_probabilities.sort(
+        key=lambda item: item[1],
+        reverse=True,
     )
+
+    # Select top 3
+    top_three = crop_probabilities[:3]
+
+    recommendations = []
+
+    for crop, probability in top_three:
+
+        confidence = round(
+            float(probability) * 100,
+            2,
+        )
+
+        explanation = generate_explanation(
+            str(crop),
+            condition,
+            weather,
+        )
+
+        recommendations.append(
+            {
+                "crop": str(crop),
+                "confidence": confidence,
+                "explanation": explanation,
+            }
+        )
 
     return {
         "farm_id": farm_id,
-        "recommended_crop": recommended_crop,
+        "recommendations": recommendations,
     }

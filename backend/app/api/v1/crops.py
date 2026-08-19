@@ -18,13 +18,44 @@ from app.services.crop_service import (
     get_crops_by_farm_id,
     update_crop,
 )
-
+from app.services.crop_lifecycle_service import (
+    get_crop_lifecycle,
+)
 
 router = APIRouter(
     prefix="/crops",
     tags=["Crops"],
 )
 
+def build_crop_response(crop):
+    lifecycle = get_crop_lifecycle(
+        crop_name=crop.name,
+        sowing_date=crop.sowing_date,
+        expected_harvest_date=crop.expected_harvest_date,
+    )
+
+    return {
+        "id": crop.id,
+        "farm_id": crop.farm_id,
+        "name": crop.name,
+        "variety": crop.variety,
+        "season": crop.season,
+        "sowing_date": crop.sowing_date,
+        "expected_harvest_date": lifecycle[
+            "expected_harvest_date"
+        ],
+        "area": crop.area,
+        "status": crop.status,
+        "crop_age_days": lifecycle[
+            "crop_age_days"
+        ],
+        "growth_stage": lifecycle[
+            "growth_stage"
+        ],
+        "days_to_harvest": lifecycle[
+            "days_to_harvest"
+        ],
+    }
 
 def get_my_farm(
     db: Session,
@@ -70,10 +101,12 @@ def create_my_crop(
         crop_data.farm_id,
     )
 
-    return create_crop(
+    crop = create_crop(
         db,
         crop_data,
     )
+
+    return build_crop_response(crop)
 
 
 @router.get(
@@ -91,10 +124,15 @@ def get_my_farm_crops(
         farm_id,
     )
 
-    return get_crops_by_farm_id(
-        db,
-        farm_id,
+    crops = get_crops_by_farm_id(
+    db,
+    farm_id,
     )
+
+    return [
+        build_crop_response(crop)
+        for crop in crops
+    ]
 
 
 @router.get(
@@ -123,7 +161,7 @@ def get_my_crop(
         crop.farm_id,
     )
 
-    return crop
+    return build_crop_response(crop)
 
 
 @router.put(
@@ -153,11 +191,13 @@ def update_my_crop(
         crop.farm_id,
     )
 
-    return update_crop(
+    updated_crop = update_crop(
         db,
         crop,
         crop_data,
     )
+
+    return build_crop_response(updated_crop)
 
 
 @router.delete(

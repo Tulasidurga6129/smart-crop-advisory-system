@@ -85,6 +85,10 @@ class CropResponse(BaseModel):
     area: float | None
     status: str
 
+    crop_age_days: int | None = None
+    growth_stage: str | None = None
+    days_to_harvest: int | None = None
+
     model_config = {
         "from_attributes": True
     }
