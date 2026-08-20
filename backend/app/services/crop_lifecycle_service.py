@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, timedelta
 
 
 # Approximate crop lifecycle durations in days.
@@ -92,14 +92,26 @@ def normalize_crop_name(crop_name: str) -> str:
     return crop_name.strip().lower()
 
 
+def get_crop_lifecycle_config(
+    crop_name: str,
+) -> dict | None:
+    """
+    Return lifecycle configuration for a supported crop.
+    """
+    crop_key = normalize_crop_name(crop_name)
+    return CROP_LIFECYCLE.get(crop_key)
+
+
 def calculate_crop_age(
     sowing_date: date,
     current_date: date | None = None,
 ) -> int:
     """
     Calculate the number of days since sowing.
-    """
 
+    Future sowing dates return 0 because the crop has not
+    started yet.
+    """
     if current_date is None:
         current_date = date.today()
 
@@ -115,13 +127,13 @@ def get_growth_stage(
     """
     Determine the current growth stage using crop-specific
     lifecycle ranges.
+
+    Returns "Unknown" when the crop is unsupported or when
+    the age does not fall into a configured range.
     """
+    lifecycle = get_crop_lifecycle_config(crop_name)
 
-    crop_key = normalize_crop_name(crop_name)
-
-    lifecycle = CROP_LIFECYCLE.get(crop_key)
-
-    if not lifecycle:
+    if lifecycle is None:
         return "Unknown"
 
     for start_day, end_day, stage in lifecycle["stages"]:
@@ -138,14 +150,11 @@ def get_crop_duration(
     crop_name: str,
 ) -> int | None:
     """
-    Return the default lifecycle duration for a crop.
+    Return the default lifecycle duration for a supported crop.
     """
+    lifecycle = get_crop_lifecycle_config(crop_name)
 
-    crop_key = normalize_crop_name(crop_name)
-
-    lifecycle = CROP_LIFECYCLE.get(crop_key)
-
-    if not lifecycle:
+    if lifecycle is None:
         return None
 
     return lifecycle["duration_days"]
@@ -157,15 +166,12 @@ def calculate_expected_harvest_date(
 ) -> date | None:
     """
     Calculate expected harvest date using the default
-    lifecycle duration for the crop.
+    lifecycle duration for a supported crop.
     """
-
     duration = get_crop_duration(crop_name)
 
     if duration is None:
         return None
-
-    from datetime import timedelta
 
     return sowing_date + timedelta(days=duration)
 
@@ -177,7 +183,6 @@ def calculate_days_to_harvest(
     """
     Calculate remaining days until expected harvest.
     """
-
     if expected_harvest_date is None:
         return None
 
@@ -189,29 +194,39 @@ def calculate_days_to_harvest(
         0,
     )
 
+
 def get_crop_lifecycle(
     crop_name: str,
     sowing_date: date | None,
     expected_harvest_date: date | None = None,
 ) -> dict:
     """
-    Return complete calculated lifecycle information
-    for a crop.
-    """
+    Return calculated lifecycle information for a crop.
 
-    if sowing_date is None:
+    Supported crops return lifecycle calculations.
+
+    Unsupported crops are explicitly marked as unsupported
+    instead of returning misleading lifecycle information.
+    """
+    lifecycle = get_crop_lifecycle_config(crop_name)
+
+    # Crop is not supported by the lifecycle module.
+    if lifecycle is None:
         return {
+            "supported": False,
             "crop_age_days": None,
-            "growth_stage": "Not Started",
+            "growth_stage": None,
             "days_to_harvest": None,
-            "expected_harvest_date": expected_harvest_date,
+            "expected_harvest_date": None,
         }
 
     today = date.today()
 
-    if sowing_date > today:
+    # Supported crop without a sowing date.
+    if sowing_date is None:
         return {
-            "crop_age_days": 0,
+            "supported": True,
+            "crop_age_days": None,
             "growth_stage": "Not Started",
             "days_to_harvest": (
                 calculate_days_to_harvest(
@@ -220,6 +235,25 @@ def get_crop_lifecycle(
                 )
                 if expected_harvest_date
                 else None
+            ),
+            "expected_harvest_date": expected_harvest_date,
+        }
+
+    # Future sowing date.
+    if sowing_date > today:
+        if expected_harvest_date is None:
+            expected_harvest_date = calculate_expected_harvest_date(
+                crop_name=crop_name,
+                sowing_date=sowing_date,
+            )
+
+        return {
+            "supported": True,
+            "crop_age_days": 0,
+            "growth_stage": "Not Started",
+            "days_to_harvest": calculate_days_to_harvest(
+                expected_harvest_date=expected_harvest_date,
+                current_date=today,
             ),
             "expected_harvest_date": expected_harvest_date,
         }
@@ -246,6 +280,7 @@ def get_crop_lifecycle(
     )
 
     return {
+        "supported": True,
         "crop_age_days": crop_age_days,
         "growth_stage": growth_stage,
         "days_to_harvest": days_to_harvest,
