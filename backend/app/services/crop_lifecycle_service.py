@@ -189,7 +189,6 @@ def calculate_days_to_harvest(
         0,
     )
 
-
 def get_crop_lifecycle(
     crop_name: str,
     sowing_date: date | None,
@@ -209,6 +208,21 @@ def get_crop_lifecycle(
         }
 
     today = date.today()
+
+    if sowing_date > today:
+        return {
+            "crop_age_days": 0,
+            "growth_stage": "Not Started",
+            "days_to_harvest": (
+                calculate_days_to_harvest(
+                    expected_harvest_date=expected_harvest_date,
+                    current_date=today,
+                )
+                if expected_harvest_date
+                else None
+            ),
+            "expected_harvest_date": expected_harvest_date,
+        }
 
     crop_age_days = calculate_crop_age(
         sowing_date=sowing_date,
