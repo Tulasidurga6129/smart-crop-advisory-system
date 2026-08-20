@@ -8,6 +8,7 @@ from app.models.farm_condition import FarmCondition
 from app.models.weather import Weather
 from app.models.crop_advisory import CropAdvisory
 from app.services import notification_service
+from app.services.crop_lifecycle_service import get_crop_lifecycle
 
 def get_latest_condition(
     db: Session,
@@ -47,6 +48,34 @@ def generate_recommendations(
     crop: Crop,
 ) -> list[dict]:
     recommendations = []
+    lifecycle = get_crop_lifecycle(
+        crop_name=crop.name,
+        sowing_date=crop.sowing_date,
+        expected_harvest_date=crop.expected_harvest_date,
+    )
+
+    if lifecycle["supported"] and lifecycle["growth_stage"] not in (
+        None,
+        "Not Started",
+    ):
+        recommendations.append(
+            {
+                "advisory_type": "crop_stage",
+                "title": f"{lifecycle['growth_stage']} Stage",
+                "message": (
+                    f"{crop.name} is currently in the "
+                    f"{lifecycle['growth_stage']} stage. "
+                    f"Continue monitoring the crop according "
+                    f"to its current growth stage."
+                ),
+                "priority": "low",
+                "status": "active",
+                "valid_until": (
+                    datetime.utcnow()
+                    + timedelta(days=3)
+                ),
+            }
+        )
 
     condition = get_latest_condition(
         db,
