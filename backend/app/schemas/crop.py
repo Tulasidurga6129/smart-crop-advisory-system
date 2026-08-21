@@ -73,6 +73,32 @@ class CropUpdate(BaseModel):
         max_length=50,
     )
 
+class CropSelection(BaseModel):
+    crop: str = Field(
+        ...,
+        min_length=2,
+        max_length=100,
+    )
+
+    season: str = Field(
+        ...,
+        min_length=2,
+        max_length=50,
+    )
+
+    sowing_date: date | None = None
+
+    expected_harvest_date: date | None = None
+
+    variety: str | None = Field(
+        default=None,
+        max_length=100,
+    )
+
+    area: float | None = Field(
+        default=None,
+        gt=0,
+    )
 
 class CropResponse(BaseModel):
     id: int

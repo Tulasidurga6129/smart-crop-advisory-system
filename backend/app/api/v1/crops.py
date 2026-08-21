@@ -9,6 +9,7 @@ from app.models.user import User
 from app.schemas.crop import (
     CropCreate,
     CropResponse,
+    CropSelection,
     CropUpdate,
 )
 from app.services.crop_service import (
@@ -16,6 +17,7 @@ from app.services.crop_service import (
     delete_crop,
     get_crop_by_id,
     get_crops_by_farm_id,
+    select_recommended_crop,
     update_crop,
 )
 from app.services.crop_lifecycle_service import (
@@ -26,6 +28,35 @@ router = APIRouter(
     prefix="/crops",
     tags=["Crops"],
 )
+
+@router.post(
+    "/farms/{farm_id}/select",
+    response_model=CropResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def select_crop(
+    farm_id: int,
+    selection: CropSelection,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    farm = get_my_farm(
+        db=db,
+        current_user=current_user,
+        farm_id=farm_id,
+    )
+    crop = select_recommended_crop(
+        db=db,
+        farm=farm,
+        crop_name=selection.crop,
+        season=selection.season,
+        sowing_date=selection.sowing_date,
+        expected_harvest_date=selection.expected_harvest_date,
+        variety=selection.variety,
+        area=selection.area,
+    )
+    return build_crop_response(crop)
+
 
 def build_crop_response(crop):
     lifecycle = get_crop_lifecycle(
@@ -107,8 +138,6 @@ def create_my_crop(
     )
 
     return build_crop_response(crop)
-
-
 @router.get(
     "/farm/{farm_id}",
     response_model=list[CropResponse],
@@ -162,7 +191,6 @@ def get_my_crop(
     )
 
     return build_crop_response(crop)
-
 
 @router.put(
     "/{crop_id}",

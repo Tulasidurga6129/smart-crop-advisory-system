@@ -6,6 +6,7 @@ from app.core.database import get_db
 from app.models.crop import Crop
 from app.models.farm import Farm
 from app.models.farm_condition import FarmCondition
+from app.models.weather import Weather
 from app.models.user import User
 from app.schemas.fertilizer_recommendation import (
     FertilizerRecommendationResponse,
@@ -13,7 +14,7 @@ from app.schemas.fertilizer_recommendation import (
 from ml.fertilizer_recommendation.fertilizer_predictor import (
     predict_fertilizer,
 )
-
+from app.services.weather_service import fetch_and_save_weather
 
 router = APIRouter(
     prefix="/fertilizer-recommendation",
@@ -76,6 +77,7 @@ def recommend_fertilizer(
         crop_id,
     )
 
+    # Get latest soil/farm condition.
     condition = (
         db.query(FarmCondition)
         .filter(
@@ -93,9 +95,52 @@ def recommend_fertilizer(
             detail="No farm condition found for this farm",
         )
 
-    required_fields = {
-        "temperature": condition.temperature,
-        "humidity": condition.humidity,
+    # Get latest automatically fetched weather.
+    weather = (
+        db.query(Weather)
+        .filter(
+            Weather.farm_id == crop.farm_id
+        )
+        .order_by(
+            Weather.observed_at.desc()
+        )
+        .first()
+    )
+
+# If no weather exists, fetch it automatically.
+    if not weather:
+        farm = (
+            db.query(Farm)
+            .filter(
+                Farm.id == crop.farm_id
+            )
+            .first()
+        )
+
+        if not farm:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Farm not found",
+            )
+
+    try:
+        weather = fetch_and_save_weather(
+            db,
+            farm,
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        )
+    except Exception:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Unable to fetch weather data",
+        )
+
+        # Soil/farm-condition values.
+    required_condition_fields = {
         "soil_moisture": condition.soil_moisture,
         "soil_type": condition.soil_type,
         "nitrogen": condition.nitrogen,
@@ -103,24 +148,45 @@ def recommend_fertilizer(
         "phosphorus": condition.phosphorus,
     }
 
-    missing_fields = [
+    missing_condition_fields = [
         field
-        for field, value in required_fields.items()
+        for field, value in required_condition_fields.items()
         if value is None
     ]
 
-    if missing_fields:
+    if missing_condition_fields:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=(
                 "Missing required farm condition fields: "
-                + ", ".join(missing_fields)
+                + ", ".join(missing_condition_fields)
+            ),
+        )
+
+    # Automatically fetched weather values.
+    required_weather_fields = {
+        "temperature": weather.temperature,
+        "humidity": weather.humidity,
+    }
+
+    missing_weather_fields = [
+        field
+        for field, value in required_weather_fields.items()
+        if value is None
+    ]
+
+    if missing_weather_fields:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                "Missing required weather fields: "
+                + ", ".join(missing_weather_fields)
             ),
         )
 
     fertilizer = predict_fertilizer(
-        temperature=condition.temperature,
-        humidity=condition.humidity,
+        temperature=weather.temperature,
+        humidity=weather.humidity,
         moisture=condition.soil_moisture,
         soil_type=condition.soil_type,
         crop_type=crop.name,
