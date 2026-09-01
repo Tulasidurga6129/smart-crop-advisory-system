@@ -1,0 +1,8 @@
+venv/
+dataset/
+data_splits/
+test_images/
+__pycache__/
+*.pyc
+models/best_model.keras
+models/best_finetuned_model.keras
