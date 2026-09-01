@@ -1,12 +1,15 @@
+from datetime import datetime, timedelta
 from app.services.weather_provider_service import (
     get_current_weather,
 )
+
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models.weather import Weather
 from app.schemas.weather import WeatherCreate, WeatherUpdate
 
+WEATHER_FRESHNESS_HOURS = 6
 
 def create_weather(
     db: Session,
@@ -56,6 +59,47 @@ def get_weather_by_farm_id(
         db.scalars(statement).all()
     )
 
+
+def get_latest_weather(
+    db: Session,
+    farm_id: int,
+) -> Weather | None:
+    statement = (
+        select(Weather)
+        .where(
+            Weather.farm_id == farm_id
+        )
+        .order_by(
+            Weather.observed_at.desc()
+        )
+    )
+
+    return db.scalar(statement)
+
+
+def get_fresh_weather(
+    db: Session,
+    farm,
+) -> Weather:
+    latest_weather = get_latest_weather(
+        db,
+        farm.id,
+    )
+
+    now = datetime.utcnow()
+
+    if latest_weather:
+        age = now - latest_weather.observed_at
+
+        if age < timedelta(
+            hours=WEATHER_FRESHNESS_HOURS
+        ):
+            return latest_weather
+
+    return fetch_and_save_weather(
+        db,
+        farm,
+    )
 
 def update_weather(
     db: Session,

@@ -16,6 +16,19 @@ class YieldPredictionRequest(BaseModel):
     max_temperature: float
     min_temperature: float
 
-
 class YieldPredictionResponse(BaseModel):
+    crop_id: int
+    farm_id: int
+    crop: str
+    crop_year: int
+    weather_year: int
+    season: str
+    state: str
+    area: float
+
+    annual_rainfall: float
+    avg_temperature: float
+    max_temperature: float
+    min_temperature: float
+
     predicted_yield: float

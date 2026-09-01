@@ -3,7 +3,9 @@ from datetime import datetime
 
 GEOCODING_URL = "https://geocoding-api.open-meteo.com/v1/search"
 WEATHER_URL = "https://api.open-meteo.com/v1/forecast"
-
+HISTORICAL_WEATHER_URL = (
+    "https://archive-api.open-meteo.com/v1/archive"
+)
 
 WEATHER_CODES = {
     0: "Clear sky",
@@ -299,4 +301,117 @@ def get_current_weather(
             weather_code,
             "Unknown",
         ),
+    }
+def get_historical_weather_summary(
+    latitude: float,
+    longitude: float,
+    start_date: str,
+    end_date: str,
+) -> dict:
+    """
+    Get historical weather summary for a location.
+
+    Returns:
+        annual rainfall,
+        average temperature,
+        maximum temperature,
+        minimum temperature.
+    """
+
+    response = requests.get(
+        HISTORICAL_WEATHER_URL,
+        params={
+            "latitude": latitude,
+            "longitude": longitude,
+            "start_date": start_date,
+            "end_date": end_date,
+            "daily": (
+                "temperature_2m_mean,"
+                "temperature_2m_max,"
+                "temperature_2m_min,"
+                "precipitation_sum"
+            ),
+            "timezone": "auto",
+        },
+        timeout=10,
+    )
+
+    response.raise_for_status()
+
+    data = response.json()
+
+    daily = data.get("daily", {})
+
+    mean_temperatures = daily.get(
+        "temperature_2m_mean",
+        [],
+    )
+
+    max_temperatures = daily.get(
+        "temperature_2m_max",
+        [],
+    )
+
+    min_temperatures = daily.get(
+        "temperature_2m_min",
+        [],
+    )
+
+    rainfall_values = daily.get(
+        "precipitation_sum",
+        [],
+    )
+
+    mean_values = [
+        value
+        for value in mean_temperatures
+        if value is not None
+    ]
+
+    max_values = [
+        value
+        for value in max_temperatures
+        if value is not None
+    ]
+
+    min_values = [
+        value
+        for value in min_temperatures
+        if value is not None
+    ]
+
+    rainfall = [
+        value
+        for value in rainfall_values
+        if value is not None
+    ]
+
+    if not mean_values:
+        raise ValueError(
+            "Historical average temperature data is unavailable"
+        )
+
+    if not max_values:
+        raise ValueError(
+            "Historical maximum temperature data is unavailable"
+        )
+
+    if not min_values:
+        raise ValueError(
+            "Historical minimum temperature data is unavailable"
+        )
+
+    if not rainfall:
+        raise ValueError(
+            "Historical rainfall data is unavailable"
+        )
+
+    return {
+        "annual_rainfall": sum(rainfall),
+        "avg_temperature": (
+            sum(mean_values)
+            / len(mean_values)
+        ),
+        "max_temperature": max(max_values),
+        "min_temperature": min(min_values),
     }

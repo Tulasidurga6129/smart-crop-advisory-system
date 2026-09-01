@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 from app.models.crop import Crop
 from app.models.farm import Farm
 from app.schemas.crop import CropCreate, CropUpdate
-from app.services.crop_recommendation_service import predict_crop
+
 
 
 def get_crop_by_id(
@@ -44,27 +44,21 @@ def select_recommended_crop(
     variety=None,
     area=None,
 ) -> Crop:
-    # Generate the current top-3 recommendations
-    recommendation = predict_crop(
-        db=db,
-        farm_id=farm.id,
-    )
+    """
+    Select a crop for the farm.
 
-    recommended_crops = {
-        item["crop"].strip().lower()
-        for item in recommendation["recommendations"]
-    }
+    The farmer may select any valid crop.
+    AI recommendations are advisory only and do not
+    restrict the farmer's choice.
+    """
 
-    selected_crop = crop_name.strip().lower()
+    selected_crop = crop_name.strip()
 
-    # Farmer can select only one of the recommended crops
-    if selected_crop not in recommended_crops:
+    # Basic validation
+    if not selected_crop:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=(
-                f"Crop '{crop_name}' was not among the "
-                "top recommended crops for this farm."
-            ),
+            detail="Crop name cannot be empty.",
         )
 
     # Prevent duplicate planned/active crop selection
@@ -72,7 +66,7 @@ def select_recommended_crop(
         db.query(Crop)
         .filter(
             Crop.farm_id == farm.id,
-            Crop.name.ilike(crop_name.strip()),
+            Crop.name.ilike(selected_crop),
             Crop.status.in_(["planned", "active"]),
         )
         .first()
@@ -82,7 +76,7 @@ def select_recommended_crop(
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=(
-                f"Crop '{crop_name}' is already selected "
+                f"Crop '{selected_crop}' is already selected "
                 "for this farm."
             ),
         )
@@ -90,7 +84,7 @@ def select_recommended_crop(
     # Create the actual farm crop
     crop = Crop(
         farm_id=farm.id,
-        name=crop_name.strip(),
+        name=selected_crop,
         variety=variety,
         season=season,
         sowing_date=sowing_date,
@@ -104,7 +98,6 @@ def select_recommended_crop(
     db.refresh(crop)
 
     return crop
-
 
 def create_crop(
     db: Session,

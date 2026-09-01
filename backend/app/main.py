@@ -26,6 +26,7 @@ from app.api.v1 import (
     yield_prediction,
     fertilizer_recommendation,
     crop_recommendation,
+    yield_predictions,
 )
 from app.api.v1.profile import router as profile_router
 app = FastAPI(
@@ -50,12 +51,14 @@ app.include_router(dashboard.router)
 app.include_router(crop_monitoring.router)
 app.include_router(notifications.router)
 app.include_router(yield_prediction.router)
+app.include_router(yield_predictions.router)
 app.include_router(
     fertilizer_recommendation.router
 )
 app.include_router(
     crop_recommendation.router
 )
+
 app.include_router(
     users_router,
     prefix="/api/v1",
