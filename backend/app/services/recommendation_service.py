@@ -9,6 +9,12 @@ from app.models.weather import Weather
 from app.models.crop_advisory import CropAdvisory
 from app.services import notification_service
 from app.services.crop_lifecycle_service import get_crop_lifecycle
+from app.services.weather_service import get_fresh_weather
+from app.services.weather_provider_service import (
+    get_coordinates_for_farm,
+    get_tomorrow_weather_forecast,
+)
+
 
 def get_latest_condition(
     db: Session,
@@ -47,12 +53,18 @@ def generate_recommendations(
     farm: Farm,
     crop: Crop,
 ) -> list[dict]:
+
     recommendations = []
+
     lifecycle = get_crop_lifecycle(
         crop_name=crop.name,
         sowing_date=crop.sowing_date,
         expected_harvest_date=crop.expected_harvest_date,
     )
+
+    # -------------------------------------------------
+    # Crop lifecycle recommendation
+    # -------------------------------------------------
 
     if lifecycle["supported"] and lifecycle["growth_stage"] not in (
         None,
@@ -77,32 +89,208 @@ def generate_recommendations(
             }
         )
 
+    # -------------------------------------------------
+    # Get latest farm condition
+    # -------------------------------------------------
+
     condition = get_latest_condition(
         db,
         farm.id,
     )
 
-    weather = get_latest_weather(
-        db,
-        farm.id,
+    # -------------------------------------------------
+    # Get fresh weather automatically
+    # -------------------------------------------------
+
+    try:
+        weather = get_fresh_weather(
+            db,
+            farm,
+        )
+    except Exception:
+        weather = get_latest_weather(
+            db,
+            farm.id,
+        )
+
+    # -------------------------------------------------
+    # Get tomorrow's weather forecast automatically
+    # -------------------------------------------------
+
+    tomorrow_weather = None
+
+    try:
+        latitude, longitude = get_coordinates_for_farm(
+            farm
+        )
+
+        tomorrow_weather = get_tomorrow_weather_forecast(
+            latitude,
+            longitude,
+        )
+
+    except Exception:
+        tomorrow_weather = None
+
+        # -------------------------------------------------
+    # 1. Automatic future-weather-aware irrigation
+    # -------------------------------------------------
+
+    soil_moisture = None
+
+    if (
+        condition
+        and condition.soil_moisture is not None
+    ):
+        soil_moisture = condition.soil_moisture
+
+    # Tomorrow's forecast values
+    forecast_rainfall = None
+    precipitation_probability = None
+
+    if tomorrow_weather:
+
+        forecast_rainfall = tomorrow_weather.get(
+            "rainfall"
+        )
+
+        precipitation_probability = (
+            tomorrow_weather.get(
+                "precipitation_probability"
+            )
+        )
+
+    # -------------------------------------------------
+    # Determine rainfall confidence
+    # -------------------------------------------------
+
+    strong_rain_expected = (
+        forecast_rainfall is not None
+        and precipitation_probability is not None
+        and forecast_rainfall >= 10
+        and precipitation_probability >= 60
+    )
+
+    moderate_rain_expected = (
+        forecast_rainfall is not None
+        and precipitation_probability is not None
+        and forecast_rainfall >= 5
+        and precipitation_probability >= 50
+    )
+
+    little_rain_expected = (
+        forecast_rainfall is not None
+        and forecast_rainfall < 5
     )
 
     # -------------------------------------------------
-    # 1. Soil moisture / irrigation recommendation
+    # Current crop growth stage
     # -------------------------------------------------
 
-    if condition and condition.soil_moisture is not None:
+    growth_stage = lifecycle.get(
+        "growth_stage"
+    )
 
-        if condition.soil_moisture < 30:
+    stage_text = (
+        growth_stage
+        if growth_stage
+        and growth_stage != "Not Started"
+        else "current growth stage"
+    )
+
+    # -------------------------------------------------
+    # Very dry soil
+    # -------------------------------------------------
+
+    if (
+        soil_moisture is not None
+        and soil_moisture < 30
+    ):
+
+        # Strong rainfall is expected
+        if strong_rain_expected:
+
             recommendations.append(
                 {
                     "advisory_type": "irrigation",
-                    "title": "Low Soil Moisture Detected",
+                    "title": "Irrigation Can Be Delayed",
                     "message": (
                         f"Soil moisture is currently "
-                        f"{condition.soil_moisture:.1f}%. "
-                        f"Irrigation is recommended to reduce "
-                        f"water stress for {crop.name}."
+                        f"{soil_moisture:.1f}% for {crop.name} "
+                        f"during the {stage_text} stage. "
+                        f"Approximately "
+                        f"{forecast_rainfall:.1f} mm of rainfall "
+                        f"is forecast for tomorrow with a "
+                        f"{precipitation_probability:.0f}% probability. "
+                        f"Irrigation can be delayed to avoid "
+                        f"unnecessary water use. Monitor the field "
+                        f"and reassess soil moisture after rainfall."
+                    ),
+                    "priority": "medium",
+                    "status": "active",
+                    "valid_until": (
+                        datetime.utcnow()
+                        + timedelta(days=1)
+                    ),
+                }
+            )
+
+        # Moderate / uncertain rainfall
+        elif moderate_rain_expected:
+
+            recommendations.append(
+                {
+                    "advisory_type": "irrigation",
+                    "title": "Irrigation May Be Needed",
+                    "message": (
+                        f"Soil moisture is currently "
+                        f"{soil_moisture:.1f}% for {crop.name}. "
+                        f"About {forecast_rainfall:.1f} mm of rainfall "
+                        f"is forecast tomorrow with a "
+                        f"{precipitation_probability:.0f}% probability. "
+                        f"Rainfall may provide some moisture, but "
+                        f"the forecast is not strong enough to rely "
+                        f"on completely. Monitor field conditions "
+                        f"before irrigating."
+                    ),
+                    "priority": "medium",
+                    "status": "active",
+                    "valid_until": (
+                        datetime.utcnow()
+                        + timedelta(days=1)
+                    ),
+                }
+            )
+
+        # Little or no rainfall
+        else:
+
+            rainfall_text = (
+                f"{forecast_rainfall:.1f} mm"
+                if forecast_rainfall is not None
+                else "no reliable rainfall amount"
+            )
+
+            probability_text = (
+                f"{precipitation_probability:.0f}%"
+                if precipitation_probability is not None
+                else "unavailable"
+            )
+
+            recommendations.append(
+                {
+                    "advisory_type": "irrigation",
+                    "title": "Irrigation Recommended",
+                    "message": (
+                        f"Soil moisture is currently "
+                        f"{soil_moisture:.1f}% for {crop.name} "
+                        f"during the {stage_text} stage. "
+                        f"Only {rainfall_text} of rainfall is "
+                        f"forecast for tomorrow with a "
+                        f"{probability_text} probability. "
+                        f"Rainfall is unlikely to provide enough "
+                        f"moisture, so irrigation is recommended "
+                        f"to reduce water stress."
                     ),
                     "priority": "high",
                     "status": "active",
@@ -113,36 +301,188 @@ def generate_recommendations(
                 }
             )
 
-        elif condition.soil_moisture < 50:
+    # -------------------------------------------------
+    # Moderate soil moisture
+    # -------------------------------------------------
+
+    elif (
+        soil_moisture is not None
+        and soil_moisture < 50
+    ):
+
+        # Strong rainfall expected
+        if strong_rain_expected:
+
             recommendations.append(
                 {
                     "advisory_type": "irrigation",
-                    "title": "Moderate Soil Moisture",
+                    "title": "Rainfall Expected — Monitor Irrigation",
                     "message": (
-                        f"Soil moisture is "
-                        f"{condition.soil_moisture:.1f}%. "
-                        f"Monitor the field and consider "
-                        f"irrigation if moisture continues "
-                        f"to decline."
+                        f"Soil moisture is currently "
+                        f"{soil_moisture:.1f}% for {crop.name}. "
+                        f"Approximately "
+                        f"{forecast_rainfall:.1f} mm of rainfall "
+                        f"is forecast tomorrow with a "
+                        f"{precipitation_probability:.0f}% probability. "
+                        f"Avoid unnecessary irrigation and "
+                        f"monitor the field."
+                    ),
+                    "priority": "low",
+                    "status": "active",
+                    "valid_until": (
+                        datetime.utcnow()
+                        + timedelta(days=1)
+                    ),
+                }
+            )
+
+        # Moderate rainfall expected
+        elif moderate_rain_expected:
+
+            recommendations.append(
+                {
+                    "advisory_type": "irrigation",
+                    "title": "Monitor Irrigation",
+                    "message": (
+                        f"Soil moisture is currently "
+                        f"{soil_moisture:.1f}% for {crop.name}. "
+                        f"Approximately "
+                        f"{forecast_rainfall:.1f} mm of rainfall "
+                        f"is forecast tomorrow with a "
+                        f"{precipitation_probability:.0f}% probability. "
+                        f"Monitor the field and consider delaying "
+                        f"irrigation if rainfall occurs."
+                    ),
+                    "priority": "low",
+                    "status": "active",
+                    "valid_until": (
+                        datetime.utcnow()
+                        + timedelta(days=1)
+                    ),
+                }
+            )
+
+        # Little/no rainfall
+        else:
+
+            recommendations.append(
+                {
+                    "advisory_type": "irrigation",
+                    "title": "Irrigation May Be Needed",
+                    "message": (
+                        f"Soil moisture is currently "
+                        f"{soil_moisture:.1f}% for {crop.name}. "
+                        f"Tomorrow's rainfall forecast is low "
+                        f"or uncertain. Monitor soil moisture "
+                        f"closely and consider irrigation if "
+                        f"moisture continues to decline."
                     ),
                     "priority": "medium",
                     "status": "active",
                     "valid_until": (
                         datetime.utcnow()
-                        + timedelta(days=2)
+                        + timedelta(days=1)
                     ),
                 }
             )
 
+    # -------------------------------------------------
+    # Adequate soil moisture
+    # -------------------------------------------------
+
+    elif (
+        soil_moisture is not None
+        and soil_moisture >= 50
+    ):
+
+        recommendations.append(
+            {
+                "advisory_type": "irrigation",
+                "title": "Irrigation Not Currently Required",
+                "message": (
+                    f"Soil moisture is currently "
+                    f"{soil_moisture:.1f}% for {crop.name}. "
+                    f"Current soil moisture appears adequate. "
+                    f"Continue monitoring the field and avoid "
+                    f"unnecessary irrigation."
+                ),
+                "priority": "low",
+                "status": "active",
+                "valid_until": (
+                    datetime.utcnow()
+                    + timedelta(days=1)
+                ),
+            }
+        )
+
+    # -------------------------------------------------
+    # No soil moisture data
+    # -------------------------------------------------
+
+    else:
+
+        if strong_rain_expected:
+
+            recommendations.append(
+                {
+                    "advisory_type": "irrigation",
+                    "title": "Rainfall Expected",
+                    "message": (
+                        f"Approximately "
+                        f"{forecast_rainfall:.1f} mm of rainfall "
+                        f"is forecast tomorrow with a "
+                        f"{precipitation_probability:.0f}% probability. "
+                        f"Soil moisture data is unavailable, so "
+                        f"avoid unnecessary irrigation and "
+                        f"monitor field conditions."
+                    ),
+                    "priority": "low",
+                    "status": "active",
+                    "valid_until": (
+                        datetime.utcnow()
+                        + timedelta(days=1)
+                    ),
+                }
+            )
+
+        elif forecast_rainfall is not None:
+
+            recommendations.append(
+                {
+                    "advisory_type": "irrigation",
+                    "title": "Irrigation Monitoring Recommended",
+                    "message": (
+                        f"Approximately "
+                        f"{forecast_rainfall:.1f} mm of rainfall "
+                        f"is forecast tomorrow. Soil moisture "
+                        f"data is unavailable, so inspect field "
+                        f"conditions before irrigating "
+                        f"{crop.name}."
+                    ),
+                    "priority": "medium",
+                    "status": "active",
+                    "valid_until": (
+                        datetime.utcnow()
+                        + timedelta(days=1)
+                    ),
+                }
+            )
     # -------------------------------------------------
     # 2. Temperature recommendation
     # -------------------------------------------------
 
     temperature = None
 
-    if weather and weather.temperature is not None:
+    if (
+        weather
+        and weather.temperature is not None
+    ):
         temperature = weather.temperature
-    elif condition and condition.temperature is not None:
+
+    elif (
+        condition
+        and condition.temperature is not None
+    ):
         temperature = condition.temperature
 
     if temperature is not None:
@@ -194,9 +534,16 @@ def generate_recommendations(
 
     rainfall = None
 
-    if weather and weather.rainfall is not None:
+    if (
+        weather
+        and weather.rainfall is not None
+    ):
         rainfall = weather.rainfall
-    elif condition and condition.rainfall is not None:
+
+    elif (
+        condition
+        and condition.rainfall is not None
+    ):
         rainfall = condition.rainfall
 
     if rainfall is not None:
@@ -247,7 +594,10 @@ def generate_recommendations(
     # 4. Soil pH recommendation
     # -------------------------------------------------
 
-    if condition and condition.soil_ph is not None:
+    if (
+        condition
+        and condition.soil_ph is not None
+    ):
 
         if condition.soil_ph < 5.5:
             recommendations.append(
@@ -297,12 +647,22 @@ def generate_recommendations(
 
     humidity = None
 
-    if weather and weather.humidity is not None:
+    if (
+        weather
+        and weather.humidity is not None
+    ):
         humidity = weather.humidity
-    elif condition and condition.humidity is not None:
+
+    elif (
+        condition
+        and condition.humidity is not None
+    ):
         humidity = condition.humidity
 
-    if humidity is not None and humidity >= 85:
+    if (
+        humidity is not None
+        and humidity >= 85
+    ):
         recommendations.append(
             {
                 "advisory_type": "weather",
@@ -322,10 +682,10 @@ def generate_recommendations(
                 ),
             }
         )
+
     # -------------------------------------------------
     # 6. Fertilizer / nutrient recommendation
     # -------------------------------------------------
-
 
     if condition:
 
@@ -336,16 +696,31 @@ def generate_recommendations(
         nutrient_deficiencies = []
 
         # Nitrogen deficiency
-        if nitrogen is not None and nitrogen < 40:
-            nutrient_deficiencies.append("nitrogen")
+        if (
+            nitrogen is not None
+            and nitrogen < 40
+        ):
+            nutrient_deficiencies.append(
+                "nitrogen"
+            )
 
         # Phosphorus deficiency
-        if phosphorus is not None and phosphorus < 20:
-            nutrient_deficiencies.append("phosphorus")
+        if (
+            phosphorus is not None
+            and phosphorus < 20
+        ):
+            nutrient_deficiencies.append(
+                "phosphorus"
+            )
 
         # Potassium deficiency
-        if potassium is not None and potassium < 40:
-            nutrient_deficiencies.append("potassium")
+        if (
+            potassium is not None
+            and potassium < 40
+        ):
+            nutrient_deficiencies.append(
+                "potassium"
+            )
 
         # -------------------------------------------------
         # Multiple nutrient deficiencies
@@ -360,7 +735,9 @@ def generate_recommendations(
             fertilizer_sources = []
 
             if "nitrogen" in nutrient_deficiencies:
-                fertilizer_sources.append("nitrogen fertilizer such as urea")
+                fertilizer_sources.append(
+                    "nitrogen fertilizer such as urea"
+                )
 
             if "phosphorus" in nutrient_deficiencies:
                 fertilizer_sources.append(
@@ -523,8 +900,9 @@ def generate_recommendations(
                     ),
                 }
             )
+
     # -------------------------------------------------
-    # 6. Crop-weather contextual recommendation
+    # 7. Crop-weather contextual recommendation
     # -------------------------------------------------
 
     if (
@@ -568,6 +946,7 @@ def create_recommendations(
     crop: Crop,
     user_id: int,
 ) -> list[CropAdvisory]:
+
     recommendations = generate_recommendations(
         db,
         farm,
@@ -618,6 +997,7 @@ def create_recommendations(
         db.commit()
 
     for advisory in advisories:
+
         db.refresh(advisory)
 
         notification_service.create_advisory_notification_if_missing(

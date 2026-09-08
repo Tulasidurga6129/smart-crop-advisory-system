@@ -88,4 +88,18 @@ def generate_crop_recommendations(
     current_user.id,
 )
 
-    return recommendations
+    return [
+    {
+        "id": advisory.id,
+        "farm_id": advisory.farm_id,
+        "crop_id": advisory.crop_id,
+        "advisory_type": advisory.advisory_type,
+        "title": advisory.title,
+        "message": advisory.message,
+        "priority": advisory.priority,
+        "status": advisory.status,
+        "valid_until": advisory.valid_until,
+        "created_at": advisory.created_at,
+    }
+    for advisory in recommendations
+]

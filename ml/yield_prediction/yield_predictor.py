@@ -1,16 +1,35 @@
 import os
-import pandas as pd
+
 import joblib
+import pandas as pd
 
-# Get the folder where this Python file is located
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
-# Path to trained model
-MODEL_PATH = os.path.join(BASE_DIR, "yield_model.pkl")
+# --------------------------------------------------
+# Paths
+# --------------------------------------------------
 
+BASE_DIR = os.path.dirname(
+    os.path.abspath(__file__)
+)
+
+MODEL_PATH = os.path.join(
+    BASE_DIR,
+    "yield_model.pkl",
+)
+
+
+# --------------------------------------------------
 # Load trained model
-model = joblib.load(MODEL_PATH)
+# --------------------------------------------------
 
+model = joblib.load(
+    MODEL_PATH
+)
+
+
+# --------------------------------------------------
+# Yield Prediction
+# --------------------------------------------------
 
 def predict_yield(
     crop,
@@ -19,33 +38,44 @@ def predict_yield(
     state,
     area,
     annual_rainfall,
-    fertilizer,
-    pesticide,
     avg_temperature,
     max_temperature,
-    min_temperature
+    min_temperature,
 ):
+    """
+    Predict crop yield using automatically obtained
+    weather/climate data and existing crop/farm data.
+    """
 
-    farmer_data = pd.DataFrame([{
-        "Crop": crop,
-        "Crop_Year": crop_year,
-        "Season": season,
-        "State": state,
-        "Area": area,
-        "Annual_Rainfall": annual_rainfall,
-        "Fertilizer": fertilizer,
-        "Pesticide": pesticide,
-        "Avg_Temperature": avg_temperature,
-        "Max_Temperature": max_temperature,
-        "Min_Temperature": min_temperature
-    }])
+    farmer_data = pd.DataFrame(
+        [
+            {
+                "Crop": crop,
+                "Crop_Year": crop_year,
+                "Season": season,
+                "State": state,
+                "Area": area,
+                "Annual_Rainfall": annual_rainfall,
+                "Avg_Temperature": avg_temperature,
+                "Max_Temperature": max_temperature,
+                "Min_Temperature": min_temperature,
+            }
+        ]
+    )
 
-    prediction = model.predict(farmer_data)
+    prediction = model.predict(
+        farmer_data
+    )
 
-    return float(prediction[0])
+    return float(
+        prediction[0]
+    )
 
 
-# Test the model
+# --------------------------------------------------
+# Local Test
+# --------------------------------------------------
+
 if __name__ == "__main__":
 
     result = predict_yield(
@@ -55,11 +85,12 @@ if __name__ == "__main__":
         state="Andhra Pradesh",
         area=5000,
         annual_rainfall=1200,
-        fertilizer=150000,
-        pesticide=500,
         avg_temperature=27,
         max_temperature=35,
-        min_temperature=21
+        min_temperature=21,
     )
 
-    print("Predicted Crop Yield:", round(result, 2))
+    print(
+        "Predicted Crop Yield:",
+        round(result, 2),
+    )
