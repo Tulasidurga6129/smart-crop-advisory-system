@@ -1,11 +1,22 @@
 import apiClient from './client';
 import type { RecommendationResponseUnknown } from '../types';
 
-// POST /recommendations/{crop_id} takes no request body — the backend
-// derives the recommendation from the crop_id alone. Response schema is not
-// declared in the OpenAPI spec, so we treat it as an arbitrary JSON object
-// and render it defensively (see RecommendationCard component).
-export async function generateCropRecommendations(cropId: number): Promise<RecommendationResponseUnknown> {
-  const { data } = await apiClient.post<RecommendationResponseUnknown>(`/recommendations/${cropId}`);
-  return data;
-}
+/**
+ * Generate crop recommendations/advisories for a crop.
+ *
+ * Backend endpoint:
+ * POST /recommendations/{crop_id}
+ *
+ * The backend returns an array of advisory objects.
+ * Authentication is handled automatically by apiClient.
+ */
+export const generateRecommendations = async (
+  cropId: number
+): Promise<RecommendationResponseUnknown> => {
+  const response = await apiClient.post<RecommendationResponseUnknown>(
+    `/recommendations/${cropId}`,
+    {}
+  );
+
+  return response.data;
+};

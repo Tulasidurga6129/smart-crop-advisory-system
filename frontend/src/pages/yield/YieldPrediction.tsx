@@ -1,185 +1,235 @@
-import { useState, type FormEvent } from 'react';
-import { Wheat } from 'lucide-react';
-import { predictYield } from '../../api/yieldPrediction';
-import type { YieldPredictionRequest, YieldPredictionResponse } from '../../types';
-import { FormInput } from '../../components/ui/FormInput';
+import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
+import { Wheat, Sprout, Plus, CloudSun, Droplets, Thermometer, ThermometerSun, ThermometerSnowflake, CheckCircle2 } from 'lucide-react';
+import { useFarms } from '../../context/FarmContext';
+import { getFarmCrops } from '../../api/crops';
+import { getYieldPrediction } from '../../api/yieldPrediction';
+import type { CropResponse, YieldPredictionResponse } from '../../types';
 import { LoadingSpinner } from '../../components/ui/LoadingSpinner';
 import { ErrorMessage } from '../../components/ui/ErrorMessage';
+import { EmptyState } from '../../components/ui/EmptyState';
+import { StatusBadge } from '../../components/ui/StatusBadge';
 import { PredictionResult } from '../../components/dashboard/PredictionResult';
-import { normalizeError, type ApiError } from '../../api/client';
-import { fieldError } from '../../utils/errors';
-
-const SEASON_OPTIONS = ['Kharif', 'Rabi', 'Whole Year', 'Summer', 'Winter', 'Autumn'];
-
-const initialForm: YieldPredictionRequest = {
-  crop: '',
-  crop_year: new Date().getFullYear(),
-  season: 'Kharif',
-  state: '',
-  area: 0,
-  annual_rainfall: 0,
-  fertilizer: 0,
-  pesticide: 0,
-  avg_temperature: 0,
-  max_temperature: 0,
-  min_temperature: 0,
-};
+import { normalizeError } from '../../api/client';
 
 export function YieldPrediction() {
-  const [form, setForm] = useState<YieldPredictionRequest>(initialForm);
+  const { farms, selectedFarmId, isLoading: farmsLoading } = useFarms();
+
+  const [crops, setCrops] = useState<CropResponse[]>([]);
+  const [cropsLoading, setCropsLoading] = useState(false);
+  const [cropsError, setCropsError] = useState<string | null>(null);
+
+  const [selectedCropId, setSelectedCropId] = useState<number | null>(null);
   const [result, setResult] = useState<YieldPredictionResponse | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<ApiError | null>(null);
+  const [isPredicting, setIsPredicting] = useState(false);
+  const [predictionError, setPredictionError] = useState<string | null>(null);
 
-  function update<K extends keyof YieldPredictionRequest>(key: K, value: YieldPredictionRequest[K]) {
-    setForm((f) => ({ ...f, [key]: value }));
-  }
-
-  async function handleSubmit(e: FormEvent) {
-    e.preventDefault();
-    setError(null);
-    setResult(null);
-    setIsLoading(true);
+  async function loadCrops() {
+    if (!selectedFarmId) return;
+    setCropsLoading(true);
+    setCropsError(null);
     try {
-      const res = await predictYield(form);
-      setResult(res);
+      const data = await getFarmCrops(selectedFarmId);
+      setCrops(data);
+      setSelectedCropId((current) => (current && data.some((c) => c.id === current) ? current : data[0]?.id ?? null));
     } catch (err) {
-      setError(normalizeError(err));
+      setCropsError(normalizeError(err).message);
     } finally {
-      setIsLoading(false);
+      setCropsLoading(false);
     }
   }
 
+  useEffect(() => {
+    loadCrops();
+    setResult(null);
+    setPredictionError(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedFarmId]);
+
+  function selectCrop(cropId: number) {
+    setSelectedCropId(cropId);
+    setResult(null);
+    setPredictionError(null);
+  }
+
+  async function handlePredict() {
+    if (!selectedCropId) return;
+    setIsPredicting(true);
+    setPredictionError(null);
+    setResult(null);
+    try {
+      const res = await getYieldPrediction(selectedCropId);
+      setResult(res);
+    } catch (err) {
+      setPredictionError(normalizeError(err).message);
+    } finally {
+      setIsPredicting(false);
+    }
+  }
+
+  if (farmsLoading) return <LoadingSpinner size="lg" label="Loading your farms…" />;
+
+  if (farms.length === 0) {
+    return (
+      <EmptyState
+        icon={Sprout}
+        title="Add a farm first"
+        description="Yield predictions are generated for crops on your farms — add a farm to get started."
+        action={
+          <Link
+            to="/farms/new"
+            className="mt-2 inline-flex items-center gap-1.5 rounded-lg bg-primary-600 px-4 py-2 text-sm font-medium text-white hover:bg-primary-700"
+          >
+            <Plus className="h-4 w-4" /> Add a farm
+          </Link>
+        }
+      />
+    );
+  }
+
   return (
-    <div className="mx-auto flex max-w-3xl flex-col gap-6">
+    <div className="mx-auto flex max-w-4xl flex-col gap-6">
       <div>
         <h1 className="text-2xl font-semibold text-gray-900">Yield Prediction</h1>
-        <p className="text-sm text-gray-500">Estimate crop yield using the backend's prediction model.</p>
+        <p className="text-sm text-gray-500">
+          Predict the expected yield of your selected crop using crop, farm and automatically collected weather
+          data.
+        </p>
       </div>
 
-      <form onSubmit={handleSubmit} className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
-        <div className="grid gap-4 sm:grid-cols-2">
-          <FormInput
-            label="Crop"
-            required
-            value={form.crop}
-            onChange={(e) => update('crop', e.target.value)}
-            error={fieldError(error, 'crop')}
-          />
-          <div className="flex flex-col gap-1">
-            <label className="text-sm font-medium text-gray-700">
-              Season<span className="text-red-500"> *</span>
-            </label>
-            <select
-              required
-              value={form.season}
-              onChange={(e) => update('season', e.target.value)}
-              className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-200"
-            >
-              {SEASON_OPTIONS.map((s) => (
-                <option key={s} value={s}>
-                  {s}
-                </option>
-              ))}
-            </select>
-          </div>
-          <FormInput
-            label="Crop year"
-            type="number"
-            required
-            value={form.crop_year}
-            onChange={(e) => update('crop_year', Number(e.target.value))}
-            error={fieldError(error, 'crop_year')}
-          />
-          <FormInput
-            label="State"
-            required
-            value={form.state}
-            onChange={(e) => update('state', e.target.value)}
-            error={fieldError(error, 'state')}
-          />
-          <FormInput
-            label="Area (hectares)"
-            type="number"
-            step="any"
-            min={0.01}
-            required
-            value={form.area || ''}
-            onChange={(e) => update('area', Number(e.target.value))}
-            error={fieldError(error, 'area')}
-          />
-          <FormInput
-            label="Annual rainfall (mm)"
-            type="number"
-            step="any"
-            min={0}
-            required
-            value={form.annual_rainfall || ''}
-            onChange={(e) => update('annual_rainfall', Number(e.target.value))}
-            error={fieldError(error, 'annual_rainfall')}
-          />
-          <FormInput
-            label="Fertilizer (kg)"
-            type="number"
-            step="any"
-            min={0}
-            required
-            value={form.fertilizer || ''}
-            onChange={(e) => update('fertilizer', Number(e.target.value))}
-            error={fieldError(error, 'fertilizer')}
-          />
-          <FormInput
-            label="Pesticide (kg)"
-            type="number"
-            step="any"
-            min={0}
-            required
-            value={form.pesticide || ''}
-            onChange={(e) => update('pesticide', Number(e.target.value))}
-            error={fieldError(error, 'pesticide')}
-          />
-          <FormInput
-            label="Avg temperature (°C)"
-            type="number"
-            step="any"
-            required
-            value={form.avg_temperature || ''}
-            onChange={(e) => update('avg_temperature', Number(e.target.value))}
-            error={fieldError(error, 'avg_temperature')}
-          />
-          <FormInput
-            label="Max temperature (°C)"
-            type="number"
-            step="any"
-            required
-            value={form.max_temperature || ''}
-            onChange={(e) => update('max_temperature', Number(e.target.value))}
-            error={fieldError(error, 'max_temperature')}
-          />
-          <FormInput
-            label="Min temperature (°C)"
-            type="number"
-            step="any"
-            required
-            value={form.min_temperature || ''}
-            onChange={(e) => update('min_temperature', Number(e.target.value))}
-            error={fieldError(error, 'min_temperature')}
-          />
-        </div>
-        {error && !error.fieldErrors && <p className="mt-4 text-sm text-red-600">{error.message}</p>}
-        <button
-          type="submit"
-          disabled={isLoading}
-          className="mt-5 inline-flex items-center justify-center gap-2 rounded-lg bg-earth-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-earth-700 disabled:opacity-60"
-        >
-          <Wheat className="h-4 w-4" />
-          {isLoading ? 'Predicting…' : 'Predict Yield'}
-        </button>
-      </form>
+      {/* Crop selection */}
+      <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
+        <p className="mb-3 text-sm font-medium text-gray-700">Select a crop</p>
 
-      {isLoading && <LoadingSpinner label="Running the prediction model…" />}
-      {error && error.fieldErrors && <ErrorMessage message={error.message} />}
-      {result && <PredictionResult predictedYield={result.predicted_yield} />}
+        {cropsLoading ? (
+          <LoadingSpinner label="Loading your crops…" />
+        ) : cropsError ? (
+          <ErrorMessage message={cropsError} onRetry={loadCrops} />
+        ) : crops.length === 0 ? (
+          <EmptyState
+            icon={Sprout}
+            title="No crops on this farm yet"
+            description="Add a crop to this farm before predicting its yield."
+            action={
+              <Link
+                to={`/crops/new?farmId=${selectedFarmId}`}
+                className="mt-2 inline-flex items-center gap-1.5 rounded-lg bg-primary-600 px-4 py-2 text-sm font-medium text-white hover:bg-primary-700"
+              >
+                <Plus className="h-4 w-4" /> Add Crop
+              </Link>
+            }
+          />
+        ) : (
+          <div className="grid gap-3 sm:grid-cols-2">
+            {crops.map((crop) => {
+              const isSelected = crop.id === selectedCropId;
+              return (
+                <button
+                  key={crop.id}
+                  type="button"
+                  onClick={() => selectCrop(crop.id)}
+                  className={`flex flex-col gap-2 rounded-xl border p-4 text-left transition ${
+                    isSelected
+                      ? 'border-primary-500 bg-primary-50/60 ring-2 ring-primary-200'
+                      : 'border-gray-100 bg-white hover:border-primary-200'
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <p className="font-semibold capitalize text-gray-900">{crop.name}</p>
+                    <StatusBadge value={crop.status} />
+                  </div>
+                  <p className="text-sm text-gray-500">
+                    {crop.variety ? `${crop.variety} · ` : ''}
+                    {crop.season}
+                  </p>
+                  {crop.area != null && <p className="text-xs text-gray-400">{crop.area} acres</p>}
+                </button>
+              );
+            })}
+          </div>
+        )}
+
+        {crops.length > 0 && (
+          <button
+            type="button"
+            onClick={handlePredict}
+            disabled={!selectedCropId || isPredicting}
+            className="mt-5 inline-flex items-center justify-center gap-2 rounded-lg bg-earth-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-earth-700 disabled:opacity-60"
+          >
+            <Wheat className="h-4 w-4" />
+            {isPredicting ? 'Predicting…' : 'Predict Yield'}
+          </button>
+        )}
+      </div>
+
+      {isPredicting && <LoadingSpinner size="lg" label="Running the prediction model…" />}
+      {predictionError && !isPredicting && <ErrorMessage message={predictionError} onRetry={handlePredict} />}
+
+      {result && !isPredicting && (
+        <>
+          <PredictionResult predictedYield={result.predicted_yield} />
+
+          {/* Weather / climate information — automatically collected */}
+          <div className="rounded-2xl border border-sky-100 bg-gradient-to-br from-sky-50 to-white p-5 shadow-sm">
+            <div className="mb-4 flex items-center gap-2 text-sm font-medium text-sky-700">
+              <CheckCircle2 className="h-4 w-4" />
+              Weather data automatically collected for this prediction
+            </div>
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              <div className="flex flex-col items-center gap-1 rounded-lg bg-white/70 py-3 text-center">
+                <Droplets className="h-4 w-4 text-sky-500" />
+                <span className="text-sm font-semibold text-gray-900">{result.annual_rainfall} mm</span>
+                <span className="text-[11px] text-gray-400">Annual Rainfall</span>
+              </div>
+              <div className="flex flex-col items-center gap-1 rounded-lg bg-white/70 py-3 text-center">
+                <Thermometer className="h-4 w-4 text-sky-500" />
+                <span className="text-sm font-semibold text-gray-900">{result.avg_temperature}°C</span>
+                <span className="text-[11px] text-gray-400">Average Temperature</span>
+              </div>
+              <div className="flex flex-col items-center gap-1 rounded-lg bg-white/70 py-3 text-center">
+                <ThermometerSun className="h-4 w-4 text-sky-500" />
+                <span className="text-sm font-semibold text-gray-900">{result.max_temperature}°C</span>
+                <span className="text-[11px] text-gray-400">Maximum Temperature</span>
+              </div>
+              <div className="flex flex-col items-center gap-1 rounded-lg bg-white/70 py-3 text-center">
+                <ThermometerSnowflake className="h-4 w-4 text-sky-500" />
+                <span className="text-sm font-semibold text-gray-900">{result.min_temperature}°C</span>
+                <span className="text-[11px] text-gray-400">Minimum Temperature</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Crop information */}
+          <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
+            <div className="mb-4 flex items-center gap-2 text-sm font-medium text-gray-700">
+              <CloudSun className="h-4 w-4 text-primary-600" />
+              Crop Information
+            </div>
+            <dl className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+              <div>
+                <dt className="text-[11px] uppercase tracking-wide text-gray-400">Crop</dt>
+                <dd className="text-sm font-medium capitalize text-gray-900">{result.crop}</dd>
+              </div>
+              <div>
+                <dt className="text-[11px] uppercase tracking-wide text-gray-400">Crop Year</dt>
+                <dd className="text-sm font-medium text-gray-900">{result.crop_year}</dd>
+              </div>
+              <div>
+                <dt className="text-[11px] uppercase tracking-wide text-gray-400">Season</dt>
+                <dd className="text-sm font-medium text-gray-900">{result.season}</dd>
+              </div>
+              <div>
+                <dt className="text-[11px] uppercase tracking-wide text-gray-400">State</dt>
+                <dd className="text-sm font-medium text-gray-900">{result.state}</dd>
+              </div>
+              <div>
+                <dt className="text-[11px] uppercase tracking-wide text-gray-400">Area</dt>
+                <dd className="text-sm font-medium text-gray-900">{result.area} acres</dd>
+              </div>
+            </dl>
+          </div>
+        </>
+      )}
     </div>
   );
 }

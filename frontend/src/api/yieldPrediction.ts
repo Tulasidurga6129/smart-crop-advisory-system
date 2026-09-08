@@ -1,9 +1,11 @@
 import apiClient from './client';
-import type { YieldPredictionRequest, YieldPredictionResponse } from '../types';
+import type { YieldPredictionResponse } from '../types';
 
-// This endpoint has no auth requirement in the OpenAPI spec — it works
-// whether or not the user is logged in.
-export async function predictYield(payload: YieldPredictionRequest): Promise<YieldPredictionResponse> {
-  const { data } = await apiClient.post<YieldPredictionResponse>('/yield-prediction/predict', payload);
+// GET /yield-predictions/crop/{crop_id} — authenticated (JWT attached
+// automatically by the apiClient request interceptor, see api/client.ts).
+// The backend derives crop year, season, farm state, crop area, and all
+// weather/climate values itself; we only ever send the crop_id.
+export async function getYieldPrediction(cropId: number): Promise<YieldPredictionResponse> {
+  const { data } = await apiClient.get<YieldPredictionResponse>(`/yield-predictions/crop/${cropId}`);
   return data;
 }

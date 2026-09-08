@@ -25,8 +25,8 @@ export function AddCrop() {
     name: '',
     variety: '',
     season: '',
-    sowing_date: '',
-    expected_harvest_date: '',
+    sowing_date: null,
+    expected_harvest_date: null,
     area: undefined,
     status: 'planned',
   });
@@ -85,13 +85,14 @@ export function AddCrop() {
             label="Sowing date"
             type="date"
             value={form.sowing_date ?? ''}
-            onChange={(e) => setForm((f) => ({ ...f, sowing_date: e.target.value }))}
+            onChange={(e) =>setForm((f) => ({ ...f, sowing_date: e.target.value || null,}))}
           />
           <FormInput
             label="Expected harvest date"
             type="date"
             value={form.expected_harvest_date ?? ''}
-            onChange={(e) => setForm((f) => ({ ...f, expected_harvest_date: e.target.value }))}
+            onChange={(e) =>setForm((f) => ({ ...f, expected_harvest_date: e.target.value || null, }))
+}
           />
         </div>
         <div className="grid gap-4 sm:grid-cols-2">

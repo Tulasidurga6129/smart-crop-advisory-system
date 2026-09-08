@@ -112,6 +112,12 @@ export interface CropResponse {
   expected_harvest_date: string | null;
   area: number | null;
   status: string;
+  // Optional — present on GET /crops/farm/{farm_id} responses, computed
+  // server-side from sowing/harvest dates. Not present on every crop
+  // endpoint, so treat as optional.
+  crop_age_days?: number;
+  growth_stage?: string;
+  days_to_harvest?: number;
 }
 
 // ---------- Farm Conditions (soil) ----------
@@ -155,16 +161,6 @@ export interface WeatherResponse extends WeatherCreate {
   created_at: string;
 }
 
-export interface TomorrowWeatherResponse {
-  farm_id: number;
-  date: string;
-  temperature_min: number | null;
-  temperature_max: number | null;
-  humidity: number | null;
-  rainfall: number | null;
-  precipitation_probability: number | null;
-  weather_condition: string;
-}
 // ---------- Crop Advisories ----------
 export interface CropAdvisoryCreate {
   advisory_type: string;
@@ -367,30 +363,43 @@ export interface FarmDashboardResponse {
 }
 
 // ---------- Yield Prediction ----------
-export interface YieldPredictionRequest {
+// GET /yield-predictions/crop/{crop_id} — authenticated. The backend looks
+// up the crop, farm, and weather/climate data itself; the frontend only
+// supplies the crop_id. All climate fields below are backend-derived and
+// must never be collected from the farmer.
+export interface YieldPredictionResponse {
+  crop_id: number;
+  farm_id: number;
   crop: string;
   crop_year: number;
+  weather_year: number;
   season: string;
   state: string;
   area: number;
   annual_rainfall: number;
-  fertilizer: number;
-  pesticide: number;
   avg_temperature: number;
   max_temperature: number;
   min_temperature: number;
-}
-
-export interface YieldPredictionResponse {
   predicted_yield: number;
 }
 
 // ---------- Recommendations ----------
 // POST /recommendations/{crop_id} has no declared response schema. Backend
 // is expected to return some JSON payload; shape is unknown until observed.
-export interface RecommendationResponseUnknown {
-  [key: string]: unknown;
+export interface RecommendationAdvisory {
+  id: number;
+  farm_id: number;
+  crop_id: number;
+  advisory_type: string;
+  title: string;
+  message: string;
+  priority: string;
+  status: string;
+  valid_until?: string | null;
+  created_at?: string | null;
 }
+
+export type RecommendationResponseUnknown = RecommendationAdvisory[];
 
 // ---------- Errors ----------
 export interface ValidationError {

@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import { FarmProvider } from './context/FarmContext';
 import { ProtectedRoute } from './components/layout/ProtectedRoute';
@@ -32,27 +32,12 @@ import { IrrigationAdvisory } from './pages/advisories/IrrigationAdvisory';
 import { Notifications } from './pages/notifications/Notifications';
 import { Admin } from './pages/admin/Admin';
 
-// Simple shell (no sidebar/farm-selector) for the one page that works
-// without authentication, since /yield-prediction/predict has no auth
-// requirement on the backend.
-function PublicShell() {
-  return (
-    <div className="min-h-screen bg-gray-50 p-4 sm:p-6">
-      <Outlet />
-    </div>
-  );
-}
-
 function AppRoutes() {
   return (
     <Routes>
       <Route path="/" element={<Landing />} />
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
-
-      <Route element={<PublicShell />}>
-        <Route path="/yield-prediction" element={<YieldPrediction />} />
-      </Route>
 
       <Route element={<ProtectedRoute />}>
         <Route element={<AppLayout />}>
@@ -75,6 +60,7 @@ function AppRoutes() {
           <Route path="/disease-detection" element={<DiseaseDetection />} />
           <Route path="/irrigation" element={<IrrigationAdvisory />} />
           <Route path="/crop-monitoring" element={<CropMonitoring />} />
+          <Route path="/yield-prediction" element={<YieldPrediction />} />
           <Route path="/advisories" element={<Advisories />} />
           <Route path="/notifications" element={<Notifications />} />
         </Route>
